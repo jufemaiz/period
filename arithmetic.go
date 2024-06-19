@@ -6,8 +6,9 @@ package period
 
 import (
 	"errors"
-	"github.com/govalues/decimal"
 	"time"
+
+	"github.com/govalues/decimal"
 )
 
 // AddTo adds the period to a time, returning the result.
@@ -21,12 +22,7 @@ import (
 // However, when years, months or days contains fractions, the result is only an approximation (it
 // assumes that all days are 24 hours and every year is 365.2425 days, as per Gregorian calendar rules).
 func (period Period) AddTo(t time.Time) (time.Time, bool) {
-	wholeYears := period.years.Scale() == 0
-	wholeMonths := period.months.Scale() == 0
-	wholeWeeks := period.weeks.Scale() == 0
-	wholeDays := period.days.Scale() == 0
-
-	if wholeYears && wholeMonths && wholeWeeks && wholeDays {
+	if !zeroCalendarValues(period) && wholeCalendarValues(period) {
 		// in this case, time.AddDate provides an exact solution
 
 		years, _, ok1 := period.years.Int64(0)
@@ -44,7 +40,16 @@ func (period Period) AddTo(t time.Time) (time.Time, bool) {
 			hms = -hms
 		}
 
-		t1 := t.AddDate(int(years), int(months), int(7*weeks+days)).Add(hms)
+		t1 := t
+
+		if years+months+weeks+days != 0 {
+			t1 = t1.AddDate(int(years), int(months), int(7*weeks+days))
+		}
+
+		if hms != 0 {
+			t1 = t1.Add(hms)
+		}
+
 		return t1, ok1 && ok2 && ok3 && ok4 && ok5
 	}
 
@@ -233,6 +238,25 @@ func fieldDuration(field decimal.Decimal, factor int64) (int64, bool) {
 	}
 
 	return int64(field.Sign()) * int64(field.Coef()) * factor, factor > 0
+}
+
+func wholeCalendarValues(period Period) bool {
+	zeroCalValue := zeroCalendarValues(period)
+	wholeYears := period.years.Scale() == 0
+	wholeMonths := period.months.Scale() == 0
+	wholeWeeks := period.weeks.Scale() == 0
+	wholeDays := period.days.Scale() == 0
+
+	return !zeroCalValue && wholeYears && wholeMonths && wholeWeeks && wholeDays
+}
+
+func zeroCalendarValues(period Period) bool {
+	zeroYears := period.years == decimal.Zero
+	zeroMonths := period.months == decimal.Zero
+	zeroWeeks := period.weeks == decimal.Zero
+	zeroDays := period.days == decimal.Zero
+
+	return zeroYears && zeroMonths && zeroWeeks && zeroDays
 }
 
 const (
